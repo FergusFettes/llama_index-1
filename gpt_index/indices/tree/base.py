@@ -58,6 +58,7 @@ class GPTTreeIndex(BaseGPTIndex[IndexGraph]):
         summary_template: Optional[SummaryPrompt] = None,
         insert_prompt: Optional[TreeInsertPrompt] = None,
         num_children: int = 10,
+        num_roots: int = 1,
         llm_predictor: Optional[LLMPredictor] = None,
         text_splitter: Optional[TextSplitter] = None,
         build_tree: bool = True,
@@ -67,6 +68,7 @@ class GPTTreeIndex(BaseGPTIndex[IndexGraph]):
         """Initialize params."""
         # need to set parameters before building index in base class.
         self.num_children = num_children
+        self.num_roots = num_roots
         self.summary_template = summary_template or DEFAULT_SUMMARY_PROMPT
         self.insert_prompt: TreeInsertPrompt = insert_prompt or DEFAULT_INSERT_PROMPT
         self.build_tree = build_tree
@@ -121,6 +123,7 @@ class GPTTreeIndex(BaseGPTIndex[IndexGraph]):
             self._text_splitter,
             use_async=self._use_async,
             llama_logger=self._llama_logger,
+            num_roots=self.num_roots,
         )
         index_graph = index_builder.build_from_text(
             documents, build_tree=self.build_tree

@@ -3,7 +3,7 @@
 import random
 import sys
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 from dataclasses_json import DataClassJsonMixin
 
@@ -87,12 +87,85 @@ class IndexGraph(IndexStruct):
         """Get the size of the graph."""
         return len(self.all_nodes)
 
+    def add_node(self, node: Node) -> None:
+        """Add a node."""
+        if node.index in self.all_nodes:
+            raise ValueError(
+                "Cannot add a new node with the same index as an existing node."
+            )
+        self.all_nodes[node.index] = node
+
+    def add_root_node(self, node: Node) -> None:
+        """Add a root node."""
+        if node.index not in self.all_nodes:
+            self.add_node(node)
+        if node.index in self.root_nodes:
+            raise ValueError(
+                "Cannot add a new root node with the same index as an existing root node."
+            )
+        self.root_nodes[node.index] = node
+
     def get_children(self, parent_node: Optional[Node]) -> Dict[int, Node]:
         """Get nodes given indices."""
         if parent_node is None:
             return self.root_nodes
         else:
             return {i: self.all_nodes[i] for i in parent_node.child_indices}
+
+    def get_all_children(self, parent_node: Optional[Node], all_children=None) -> Dict[int, Node]:
+        """Get all children."""
+        all_children = all_children or {}
+        children = self.get_children(parent_node)
+        for child_node in children.values():
+            all_children[child_node.index] = child_node
+            self.get_all_children(child_node, all_children)
+        return all_children
+
+    def get_parent(self, node: Node) -> Optional[Node]:
+        """Get parent node."""
+        for parent_node in self.all_nodes.values():
+            if node.index in parent_node.child_indices:
+                return parent_node
+        return None
+
+    def get_siblings(self, node: Node, include_self=False) -> Dict[int, Node]:
+        """Get siblings."""
+        parent_node = self.get_parent(node)
+        if parent_node is None:
+            children = self.root_nodes
+        else:
+            children = self.get_children(parent_node)
+        if include_self:
+            return children
+        return {i: children[i] for i in children if i != node.index}
+
+    def is_last_child(self, node: Node) -> Dict[int, Node]:
+        """Get siblings."""
+        siblings = self.get_siblings(node, include_self=True)
+        if len(siblings) == 1:
+            return True
+        if node.index == max(siblings.keys()):
+            return True
+        return False
+
+    def get_leaves(self, node: Node, leaves: Optional[Dict[int, Node]] = None) -> Dict[int, Node]:
+        """Get leaves."""
+        if leaves is None:
+            leaves = {}
+        if len(node.child_indices) == 0:
+            leaves[node.index] = node
+        else:
+            for child_node in self.get_children(node).values():
+                self.get_leaves(child_node, leaves)
+        return leaves
+
+    @property
+    def branches(self) -> int:
+        """Get the number of branches. This will equal the number of leaves."""
+        total = 0
+        for node in self.root_nodes.values():
+            total += len(self.get_leaves(node))
+        return total
 
     def insert_under_parent(self, node: Node, parent_node: Optional[Node]) -> None:
         """Insert under parent node."""
@@ -111,6 +184,145 @@ class IndexGraph(IndexStruct):
     def get_type(cls) -> str:
         """Get type."""
         return "tree"
+
+    @property
+    def last_node(self) -> int:
+        """Get the last node index."""
+        return self.all_nodes[max(self.all_nodes.keys())]
+
+    def get_node(self, identifier: Union[int, str]) -> Optional[Node]:
+        """Get node."""
+        if isinstance(identifier, int):
+            return self.all_nodes.get(identifier, None)
+        if identifier.isdigit():
+            return self.all_nodes.get(int(identifier), None)
+        if isinstance(identifier, str):
+            for node in self.all_nodes.values():
+                if node.text == identifier:
+                    return node
+        return None
+
+    def get_path_to_root(self, node: Node, path: Optional[List[Node]] = None) -> List[Node]:
+        """Get path to root."""
+        path = path.append(node) if path is not None else [node]
+        parent_node = self.get_parent(node)
+        if parent_node is None:
+            return path
+        return self.get_path_to_root(parent_node, path)
+
+    def _get_graph(self) -> None:
+        import networkx as nx
+
+        g = nx.Graph()
+
+        # add nodes
+        for _, node in self.all_nodes.items():
+            g.add_node(node.text)
+
+        # add edges
+        for _, node in self.all_nodes.items():
+            children = self.get_children(node)
+            for _, child in children.items():
+                g.add_edge(child.text, node.text)
+
+        return g
+
+    def _get_viz(self) -> None:
+        from pyvis.network import Network
+
+        net = Network(cdn_resources="in_line", directed=True)
+        net.from_nx(self._get_graph())
+        net.show_buttons(filter_=['physics'])
+        net.save_graph("test.html")
+
+    def __repr__(self) -> str:
+        """Get string representation, in the manner of a git log."""
+        return self._get_repr(_str=self._legend())
+
+    def get_full_repr(self, summaries=False) -> str:
+        uber_root = Node(
+            index=-1,
+            text='(displaying all nodes)',
+            child_indices=[i for i in self.root_nodes.keys()],
+            node_info={}
+        )
+        _str = self._legend()
+        _str += self._root_info()
+        return self._get_repr(uber_root, _str, summaries=summaries)
+
+    def _root_info(self) -> str:
+        _str = "\n# Root Node Index (branches:total_nodes)) #\n"
+        for root in self.root_nodes.values():
+            leaves = self.get_leaves(root)
+            children = self.get_all_children(root)
+            _str += f"{root.index}; ({len(leaves)}:{len(children)}):\t\t{root.text.splitlines()[0]}"
+            _str += f"\t\t{'<-- CURRENT_ROOT' if self.all_nodes[root.index].node_info.get('checked_out', False) else ''}\n"
+        return _str + "\n"
+
+    def _legend(self) -> str:
+        return (
+            "# Legend #######################################\n"
+            "# * are nodes that are not checked out         #\n"
+            "# X are nodes that are checked out             #\n"
+            "# E are nodes that have embeddings             #\n"
+            "# if you have run a similarity query,          #\n"
+            "#   the similarities will be displayed         #\n"
+            "#   instead of the E                           #\n"
+            "# ##############################################\n\n"
+            "# Conversation Tree. You can checkout indexes.##\n"
+        )
+
+    def _get_repr(self, node: Optional[Node] = None, _str: str = "", summaries: bool = False) -> str:
+        if node is None:
+            checked_out = [i for i, n in self.all_nodes.items() if n.node_info.get('checked_out', False)]
+            if checked_out:
+                node = self.all_nodes[checked_out[0]]
+            else:
+                node = self.all_nodes[min(self.all_nodes.keys())]
+        repr = self._get_repr_recursive(node, repr=_str, summaries=summaries)
+        return repr + "\n# ##############################################\n\n"
+
+    def _get_repr_recursive(
+            self,
+            node: Optional[Node] = None,
+            indent: int = 0,
+            repr: str = "",
+            summaries: bool = False
+        ) -> str:
+        info_str = '*' if not node.node_info.get('checked_out', False) else 'X'
+        if node.embedding and node.node_info.get("similarity", None) is None:
+            info_str += "E"
+        if node.node_info.get("similarity", None) is not None:
+            info_str += f"{node.node_info['similarity']:.2f}"
+
+        summary = ""
+        if summaries and node.node_info.get("summary", None) is not None:
+            summary = "\t\t"
+            summary += node.node_info["summary"].replace("\n", "; ")
+        info_str += f"\t\t{node.index}: {node.text.splitlines()[0]}{summary}\n"
+
+        many_nodes = len(self.all_nodes) > 50
+        space = " " if many_nodes else "  "
+
+        prefix = indent * f'|{space}'
+        repr += f'{prefix}{info_str}'
+
+        nodes = self.get_children(node)
+        if not nodes:
+            return repr
+
+        if len(nodes) > 1:
+            repr += f'{prefix}|\\ \n'
+            if not many_nodes:
+                repr += f'{indent * "|  "}| \\ \n'
+
+        for child_node in nodes.values():
+            if self.is_last_child(child_node):
+                repr = self._get_repr_recursive(child_node, indent, repr, summaries)
+            else:
+                repr = self._get_repr_recursive(child_node, indent + 1, repr, summaries)
+
+        return repr
 
 
 @dataclass

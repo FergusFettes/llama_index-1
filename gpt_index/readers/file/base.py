@@ -45,6 +45,7 @@ class SimpleDirectoryReader(BaseReader):
         input_files (List): List of file paths to read
             (Optional; overrides input_dir, exclude)
         exclude (List): glob of python file paths to exclude (Optional)
+        include (List): glob of python file paths to include (overrides excludes) (Optional)
         exclude_hidden (bool): Whether to exclude hidden files (dotfiles).
         errors (str): how encoding and decoding errors are to be handled,
               see https://docs.python.org/3/library/functions.html#open
@@ -67,6 +68,7 @@ class SimpleDirectoryReader(BaseReader):
         input_dir: Optional[str] = None,
         input_files: Optional[List] = None,
         exclude: Optional[List] = None,
+        include: Optional[List] = None,
         exclude_hidden: bool = True,
         errors: str = "ignore",
         recursive: bool = False,
@@ -84,6 +86,7 @@ class SimpleDirectoryReader(BaseReader):
         self.errors = errors
 
         self.exclude = exclude
+        self.include = include
         self.recursive = recursive
         self.exclude_hidden = exclude_hidden
         self.required_exts = required_exts
@@ -96,7 +99,6 @@ class SimpleDirectoryReader(BaseReader):
                 self.input_files.append(input_file)
         elif input_dir:
             self.input_dir = Path(input_dir)
-            self.exclude = exclude
             self.input_files = self._add_files(self.input_dir)
 
         self.file_extractor = file_extractor or DEFAULT_FILE_EXTRACTOR
@@ -106,6 +108,7 @@ class SimpleDirectoryReader(BaseReader):
         """Add files."""
         all_files = set()
         rejected_files = set()
+        included_files = set()
 
         if self.exclude is not None:
             for excluded_pattern in self.exclude:
@@ -118,6 +121,17 @@ class SimpleDirectoryReader(BaseReader):
                     for file in input_dir.glob(excluded_pattern):
                         rejected_files.add(Path(file))
 
+        if self.include is not None:
+            for included_pattern in self.include:
+                if self.recursive:
+                    # Recursive glob
+                    for file in input_dir.rglob(included_pattern):
+                        included_files.add(Path(file))
+                else:
+                    # Non-recursive glob
+                    for file in input_dir.glob(included_pattern):
+                        included_files.add(Path(file))
+        
         file_refs: Generator[Path, None, None]
         if self.recursive:
             file_refs = Path(input_dir).rglob("*")
@@ -132,7 +146,7 @@ class SimpleDirectoryReader(BaseReader):
             skip_because_bad_ext = (
                 self.required_exts is not None and ref.suffix not in self.required_exts
             )
-            skip_because_excluded = ref in rejected_files
+            skip_because_excluded = ref in rejected_files and not ref in included_files
 
             if (
                 is_dir
@@ -212,6 +226,6 @@ class SimpleDirectoryReader(BaseReader):
                 Document(d, extra_info=m) for d, m in zip(data_list, metadata_list)
             ]
         else:
-            text_docs = [Document(d) for d in data_list]
+            text_docs = [Document(d, extra_info={"filepath": str(f.absolute())}) for d, f in zip(data_list, self.input_files)]
 
         return text_docs + cast(List[Document], image_docs)

@@ -27,7 +27,7 @@ class GlobalsHelper:
         if self._tokenizer is None:
             # if python version >= 3.9, then use tiktoken
             # else use GPT2TokenizerFast
-            if sys.version_info >= (3, 9):
+            if sys.version_info >= (3, 8):
                 tiktoken_import_err = (
                     "`tiktoken` package not found, please run `pip install tiktoken`"
                 )

@@ -34,13 +34,19 @@ class GPTTreeIndexBuilder:
         llm_predictor: LLMPredictor,
         prompt_helper: PromptHelper,
         text_splitter: TextSplitter,
+        num_roots: Optional[int] = None,
         use_async: bool = False,
         llama_logger: Optional[LlamaLogger] = None,
     ) -> None:
         """Initialize with params."""
         if num_children < 2:
             raise ValueError("Invalid number of children.")
+        if num_roots is None:
+            num_roots = num_children
+        if num_roots is not None and num_roots < 1:
+            raise ValueError("Invalid number of roots.")
         self.num_children = num_children
+        self.num_roots = num_roots
         self.summary_prompt = summary_prompt
         self._llm_predictor = llm_predictor
         self._prompt_helper = prompt_helper
@@ -168,7 +174,7 @@ class GPTTreeIndexBuilder:
         )
         all_nodes.update(new_node_dict)
 
-        if len(new_node_dict) <= self.num_children:
+        if len(new_node_dict) <= self.num_roots:
             return new_node_dict
         else:
             return self.build_index_from_nodes(
@@ -197,7 +203,7 @@ class GPTTreeIndexBuilder:
         )
         all_nodes.update(new_node_dict)
 
-        if len(new_node_dict) <= self.num_children:
+        if len(new_node_dict) <= self.num_roots:
             return new_node_dict
         else:
             return await self.abuild_index_from_nodes(
