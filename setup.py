@@ -12,11 +12,13 @@ with open("README.md", "r", encoding="utf-8") as f:
 
 install_requires = [
     "dataclasses_json",
-    "langchain",
+    "langchain @ git+https://github.com/fergusfettes/langchain-1.git@v0.0.167#egg=langchain",
     "numpy",
     "tenacity>=8.2.0,<9.0.0",
     "openai>=0.26.4",
     "pandas",
+    "requests<2.30.0",
+    "python-dotenv==1.0.0",
 ]
 
 # NOTE: if python version >= 3.9, install tiktoken
