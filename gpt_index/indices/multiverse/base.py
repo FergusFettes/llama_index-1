@@ -1,3 +1,5 @@
+# from dataclasses import dataclass, field
+from dataclasses import field
 from pathlib import Path
 from typing import Any, Dict, Optional, Sequence, Type, List, Union
 
@@ -9,10 +11,9 @@ from gpt_index.indices.query.tree.embedding_query import GPTTreeIndexEmbeddingQu
 from gpt_index.indices.query.schema import QueryMode
 from gpt_index.readers.schema.base import Document
 from gpt_index.schema import BaseDocument
-from langchain.llms import OpenAI
-from langchain.prompts import PromptTemplate
+# from langchain.llms import OpenAI
+# from langchain.prompts import PromptTemplate
 
-from dataclasses import dataclass, field
 import numpy as np
 
 from dotenv import load_dotenv
@@ -22,44 +23,44 @@ load_dotenv()
 
 LATEST_SUMMARY: str = "No key information yet. Please extract the key information from the new messages."
 
-@dataclass
-class SummarizeModel:
-    llm = OpenAI(temperature=0, max_tokens=1000, model="gpt-3.5-turbo", n=1)
-    prompt_str = (
-        "A conversation is ongoing. The key information is continuously being summarized and updated for the last few messages. If there is no change to the key information, it will be returned as is. The key information can be reformatted when new information arrives.\n\n"
-        "Key Information:\n"
-        "{existing_summary}\n\n"
-        "New Messages:\n"
-        "{new_messages}\n\n"
-        "Updated and Reformatted Key Information:\n"
-    )
-    latest_summary: str = LATEST_SUMMARY
-    new_messages: str = ""
-
-    def __post_init__(self):
-        self.prompter = PromptTemplate(template=self.prompt_str, input_variables=["existing_summary", "new_messages"])
-
-    def simple_gen(self):
-        responses = self.llm.generate([self.prompt()])
-        return responses.generations[0][0].text
-
-    def get_info(self, path: List[Node]) -> None:
-        self.new_messages = ""
-        for node in path:
-            if node.node_info.get("summary", None) is not None:
-                self.latest_summary = node.node_info["summary"]
-            if node.node_info.get("summary", None) is None:
-                self.new_messages += node.text
-                self.new_messages += "\n"
-
-    def prompt(self):
-        return self.prompter.format(existing_summary=self.latest_summary, new_messages=self.new_messages)
-
-    def summarize(self, path: List[Node]) -> str:
-        self.get_info(path)
-        self.latest_summary = self.simple_gen()
-        path[-1].node_info["summary"] = self.latest_summary
-        return self.latest_summary
+# @dataclass
+# class SummarizeModel:
+#     llm = OpenAI(temperature=0, max_tokens=1000, model="gpt-3.5-turbo", n=1)
+#     prompt_str = (
+#         "A conversation is ongoing. The key information is continuously being summarized and updated for the last few messages. If there is no change to the key information, it will be returned as is. The key information can be reformatted when new information arrives.\n\n"
+#         "Key Information:\n"
+#         "{existing_summary}\n\n"
+#         "New Messages:\n"
+#         "{new_messages}\n\n"
+#         "Updated and Reformatted Key Information:\n"
+#     )
+#     latest_summary: str = LATEST_SUMMARY
+#     new_messages: str = ""
+#
+#     def __post_init__(self):
+#         self.prompter = PromptTemplate(template=self.prompt_str, input_variables=["existing_summary", "new_messages"])
+#
+#     def simple_gen(self):
+#         responses = self.llm.generate([self.prompt()])
+#         return responses.generations[0][0].text
+#
+#     def get_info(self, path: List[Node]) -> None:
+#         self.new_messages = ""
+#         for node in path:
+#             if node.node_info.get("summary", None) is not None:
+#                 self.latest_summary = node.node_info["summary"]
+#             if node.node_info.get("summary", None) is None:
+#                 self.new_messages += node.text
+#                 self.new_messages += "\n"
+#
+#     def prompt(self):
+#         return self.prompter.format(existing_summary=self.latest_summary, new_messages=self.new_messages)
+#
+#     def summarize(self, path: List[Node]) -> str:
+#         self.get_info(path)
+#         self.latest_summary = self.simple_gen()
+#         path[-1].node_info["summary"] = self.latest_summary
+#         return self.latest_summary
 
 
 class GPTMultiverseIndex(BaseGPTIndex[IndexGraph]):
@@ -82,7 +83,7 @@ class GPTMultiverseIndex(BaseGPTIndex[IndexGraph]):
     generate_embeddings: bool = False
     generate_summaries: bool = False
     cache_size: int = 4
-    summarizer: SummarizeModel = SummarizeModel()
+    # summarizer: SummarizeModel = SummarizeModel()
     latest_summary: str = "None."
 
     def __init__(self, name=None, summary=None, generate_embeddings=False, **kwargs):

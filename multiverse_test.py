@@ -1,15 +1,15 @@
 #!/usr/bin/env python
 
 
-from llama_index import GPTMultiverseIndex
-from llama_index.readers.schema.base import Document
+from gpt_index import GPTMultiverseIndex
+from gpt_index.readers.schema.base import Document
 
 from dotenv import load_dotenv
 
 load_dotenv()
 
 doc = Document("This is a conversation about shoes.")
-index = GPTMultiverseIndex(nodes=[], generate_embeddings=True)
+index = GPTMultiverseIndex(documents=[], generate_embeddings=True)
 index.extend(doc)
 
 doc = Document("I like welligton boots.")
